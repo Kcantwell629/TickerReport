@@ -1,5 +1,10 @@
 # Ticker Report
 
+[![Expo SDK 57](https://img.shields.io/badge/Expo-SDK%2057-000020?logo=expo&logoColor=white)](https://expo.dev)
+[![React Native 0.86](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react&logoColor=white)](https://reactnative.dev)
+[![Platform: iOS | Android | Web](https://img.shields.io/badge/platform-iOS%20%7C%20Android%20%7C%20Web-informational)](#running-it)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 A mobile app that turns any stock ticker into an equity-research brief, structured
 around **The Investing Playbook** (quality, valuation, moat, red flags) and styled
 after the sample `SM_Report.pdf` brief.
