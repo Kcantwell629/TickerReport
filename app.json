@@ -1,17 +1,19 @@
 {
   "expo": {
-    "name": "TickerReport",
-    "slug": "TickerReport",
+    "name": "Ticker Report",
+    "slug": "ticker-report",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0B1416",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "backgroundColor": "#0B1416"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0B1416",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -19,7 +21,23 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "favicon": "./assets/favicon.png",
+      "backgroundColor": "#0B1416"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0B1416",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "dark": {
+            "backgroundColor": "#0B1416"
+          }
+        }
+      ]
+    ]
   }
 }
