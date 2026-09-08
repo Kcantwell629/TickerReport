@@ -1,15 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
-  fetchProfile,
+  fetchOverview,
   fetchQuote,
-  fetchRatiosTTM,
-  fetchKeyMetricsTTM,
-  fetchIncomeStatements,
-  fetchCashFlowStatements,
-  estimateEpsGrowthRate,
-  parsePriceRange,
-  FmpError,
-} from '../services/fmp';
+  fetchBalanceSheet,
+  fetchCashFlow,
+  estimateGrowthRatePct,
+  AlphaVantageError,
+} from '../services/alphaVantage';
 
 export interface ReportData {
   symbol: string;
@@ -68,7 +65,7 @@ async function labeled<T>(label: string, p: Promise<T>): Promise<T> {
   try {
     return await p;
   } catch (e) {
-    if (e instanceof FmpError) throw new FmpError(`[${label}] ${e.message}`, e.status);
+    if (e instanceof AlphaVantageError) throw new AlphaVantageError(`[${label}] ${e.message}`);
     throw e;
   }
 }
@@ -79,79 +76,97 @@ export function useTickerReport(symbol: string, apiKey: string) {
   const run = useCallback(async () => {
     if (!symbol) return;
     if (!apiKey) {
-      setState({ loading: false, error: 'Add a free Financial Modeling Prep API key in Settings to pull live data.', data: null });
+      setState({ loading: false, error: 'Add a free Alpha Vantage API key in Settings to pull live data.', data: null });
       return;
     }
     setState({ loading: true, error: null, data: null });
     try {
       const sym = symbol.trim().toUpperCase();
+
       const soft = <T,>(label: string, fallback: T, p: Promise<T>): Promise<T> =>
         p.catch((e) => {
-          console.warn(`[TickerReport] ${label} unavailable:`, e instanceof FmpError ? `${e.status} ${e.message}` : e);
+          console.warn(`[TickerReport] ${label} unavailable:`, e instanceof AlphaVantageError ? e.message : e);
           return fallback;
         });
 
-      const [profile, quote, ratios, keyMetrics, incomeStatements, cashFlows] = await Promise.all([
-        labeled('profile', fetchProfile(sym, apiKey)),
-        // Real-time quote needs a paid FMP plan on some accounts — treat it as a bonus
-        // enrichment rather than a hard requirement; profile + ratios cover the essentials.
-        soft('quote', null, fetchQuote(sym, apiKey)),
-        soft('ratios-ttm', null, fetchRatiosTTM(sym, apiKey)),
-        soft('key-metrics-ttm', null, fetchKeyMetricsTTM(sym, apiKey)),
-        soft('income-statement', [], fetchIncomeStatements(sym, apiKey, 6)),
-        soft('cashflow-statement', [], fetchCashFlowStatements(sym, apiKey, 1)),
+      const [overview, quote, balanceSheet, cashFlow] = await Promise.all([
+        labeled('overview', fetchOverview(sym, apiKey)),
+        soft('quote', { price: null, changePercent: null }, fetchQuote(sym, apiKey)),
+        soft('balance-sheet', null, fetchBalanceSheet(sym, apiKey)),
+        soft('cash-flow', null, fetchCashFlow(sym, apiKey)),
       ]);
 
-      const latestIncome = incomeStatements[0];
-      const latestCashFlow = cashFlows[0];
-      const profileRange = parsePriceRange(profile.range);
+      const currentRatio =
+        balanceSheet?.totalCurrentAssets != null && balanceSheet?.totalCurrentLiabilities
+          ? balanceSheet.totalCurrentAssets / balanceSheet.totalCurrentLiabilities
+          : null;
+      const debtToEquity =
+        balanceSheet?.totalLiabilities != null && balanceSheet?.totalShareholderEquity
+          ? balanceSheet.totalLiabilities / balanceSheet.totalShareholderEquity
+          : null;
+      // No NOPAT/invested-capital breakdown on the free tier — approximate ROIC as
+      // net income over (equity + total debt). A guideline figure, not exact.
+      const investedCapital =
+        balanceSheet?.totalShareholderEquity != null
+          ? balanceSheet.totalShareholderEquity + (balanceSheet.shortLongTermDebtTotal ?? 0)
+          : null;
+      const roic =
+        investedCapital && investedCapital > 0 && cashFlow?.netIncome != null
+          ? (cashFlow.netIncome / investedCapital) * 100
+          : null;
+      const freeCashFlow =
+        cashFlow?.operatingCashflow != null && cashFlow?.capitalExpenditures != null
+          ? cashFlow.operatingCashflow - cashFlow.capitalExpenditures
+          : null;
+      const grossMargin =
+        overview.grossProfitTTM != null && overview.revenueTTM
+          ? (overview.grossProfitTTM / overview.revenueTTM) * 100
+          : null;
 
       const data: ReportData = {
         symbol: sym,
-        companyName: profile.companyName ?? sym,
-        exchange: profile.exchangeShortName ?? '',
-        currency: profile.currency ?? 'USD',
-        sector: profile.sector ?? '—',
-        industry: profile.industry ?? '—',
-        description: profile.description ?? '',
-        ceo: profile.ceo ?? '—',
-        city: profile.city ?? '',
-        state: profile.state ?? '',
-        country: profile.country ?? '',
-        employees: profile.fullTimeEmployees ?? '—',
-        ipoDate: profile.ipoDate ?? '—',
-        website: profile.website ?? '',
-        image: profile.image ?? '',
-        beta: typeof profile.beta === 'number' ? profile.beta : null,
+        companyName: overview.name ?? sym,
+        exchange: overview.exchange ?? '',
+        currency: overview.currency ?? 'USD',
+        sector: overview.sector ?? '—',
+        industry: overview.industry ?? '—',
+        description: overview.description ?? '',
+        ceo: '—', // not available from Alpha Vantage's free OVERVIEW endpoint
+        city: '',
+        state: '',
+        country: overview.country ?? '',
+        employees: '—', // not available from Alpha Vantage's free OVERVIEW endpoint
+        ipoDate: '—',
+        website: '',
+        image: '',
+        beta: overview.beta,
 
-        price: quote?.price ?? profile.price ?? 0,
-        changePercent: quote?.changesPercentage ?? 0,
-        marketCap: quote?.marketCap ?? profile.mktCap ?? 0,
-        yearHigh: quote?.yearHigh ?? profileRange.high ?? 0,
-        yearLow: quote?.yearLow ?? profileRange.low ?? 0,
-        eps: quote?.eps ?? ratios?.epsTTM ?? latestIncome?.epsdiluted ?? 0,
-        peRatio: quote?.pe ?? ratios?.priceEarningsRatioTTM ?? null,
+        price: quote.price ?? 0,
+        changePercent: quote.changePercent ?? 0,
+        marketCap: overview.marketCap ?? 0,
+        yearHigh: overview.week52High ?? 0,
+        yearLow: overview.week52Low ?? 0,
+        eps: overview.eps ?? 0,
+        peRatio: overview.peRatio,
 
-        grossMargin: pct(ratios?.grossProfitMarginTTM),
-        netMargin: pct(ratios?.netProfitMarginTTM),
-        // ROE/ROIC live on key-metrics-ttm in FMP's current API; ratios-ttm is a fallback
-        // in case a plan/version still surfaces it there.
-        roe: pct(keyMetrics?.returnOnEquityTTM ?? ratios?.returnOnEquityTTM),
-        roic: pct(keyMetrics?.roicTTM),
-        currentRatio: ratios?.currentRatioTTM ?? null,
-        debtToEquity: ratios?.debtEquityRatioTTM ?? null,
-        dividendYield: pct(ratios?.dividendYieldTTM),
+        grossMargin,
+        netMargin: pct(overview.profitMargin),
+        roe: pct(overview.returnOnEquityTTM),
+        roic,
+        currentRatio,
+        debtToEquity,
+        dividendYield: pct(overview.dividendYield),
 
-        revenueTTM: latestIncome ? latestIncome.revenue : null,
-        netIncomeTTM: latestIncome ? latestIncome.netIncome : null,
-        operatingCashFlow: latestCashFlow ? latestCashFlow.operatingCashFlow : null,
-        freeCashFlow: latestCashFlow ? latestCashFlow.freeCashFlow : null,
-        epsGrowthRatePct: estimateEpsGrowthRate(incomeStatements),
+        revenueTTM: overview.revenueTTM,
+        netIncomeTTM: cashFlow?.netIncome ?? null,
+        operatingCashFlow: cashFlow?.operatingCashflow ?? null,
+        freeCashFlow,
+        epsGrowthRatePct: estimateGrowthRatePct(overview),
       };
 
       setState({ loading: false, error: null, data });
     } catch (e) {
-      const message = e instanceof FmpError ? e.message : 'Something went wrong fetching this ticker.';
+      const message = e instanceof AlphaVantageError ? e.message : 'Something went wrong fetching this ticker.';
       setState({ loading: false, error: message, data: null });
     }
   }, [symbol, apiKey]);

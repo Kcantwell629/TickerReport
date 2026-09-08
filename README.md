@@ -29,10 +29,13 @@ ticker, so re-running a report later remembers your last assessment.
 
 ## Data source
 
-Live data comes from [Financial Modeling Prep](https://site.financialmodelingprep.com/developer/docs/),
-which has a free tier (250 requests/day, no credit card). Get a key, then paste it
-into the app's **Settings** screen — nothing is hardcoded, and the key stays on-device
-(`AsyncStorage`).
+Live data comes from [Alpha Vantage](https://www.alphavantage.co/support/#api-key),
+which has a genuinely free tier (25 requests/day, 5/min, no credit card — a report
+uses about 4 calls). Get a key, then paste it into the app's **Settings** screen —
+nothing is hardcoded, and the key stays on-device (`AsyncStorage`).
+
+(An earlier version used Financial Modeling Prep, but its free tier turned out to
+cover only company profile data — every ratio/statement endpoint needed a paid plan.)
 
 Also in Settings: the **AAA corporate bond yield (Y)** used in the Graham formula.
 Update it occasionally from a source like FRED's Moody's Seasoned Aaa series.
@@ -54,7 +57,7 @@ press `w` in the terminal to preview in a browser tab.
 src/
   theme/            colors, type scale, grade→color mapping (dark teal/orange, per the moodboard)
   services/
-    fmp.ts          Financial Modeling Prep API client
+    alphaVantage.ts Alpha Vantage API client
     playbook.ts      Playbook thresholds, grading, Graham formula, red-flag rules
     reportStorage.ts per-ticker saved assessment (moat/lifecycle/rating/notes)
   hooks/

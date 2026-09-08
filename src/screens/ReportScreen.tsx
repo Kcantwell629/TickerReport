@@ -235,7 +235,7 @@ export default function ReportScreen({ route, navigation }: Props) {
                 <View style={styles.tileGrid}>
                   <StatTile label="SECTOR" value={data.sector || '—'} />
                   <StatTile label="INDUSTRY" value={data.industry || '—'} />
-                  <StatTile label="EMPLOYEES" value={data.employees ? Number(data.employees).toLocaleString() : '—'} />
+                  <StatTile label="EMPLOYEES" value={data.employees && Number.isFinite(Number(data.employees)) ? Number(data.employees).toLocaleString() : '—'} />
                   <StatTile label="HQ" value={[data.city, data.state || data.country].filter(Boolean).join(', ') || '—'} />
                   <StatTile label="DIVIDEND YIELD" value={formatPct(data.dividendYield)} accent />
                   <StatTile label="BETA" value={data.beta !== null ? data.beta.toFixed(2) : '—'} />

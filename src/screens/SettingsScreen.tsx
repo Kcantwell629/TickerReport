@@ -37,19 +37,20 @@ export default function SettingsScreen({ navigation }: Props) {
             <View style={{ width: 42 }} />
           </View>
 
-          <SectionCard eyebrow="Data Source" title="Financial Modeling Prep">
+          <SectionCard eyebrow="Data Source" title="Alpha Vantage">
             <Text style={styles.body}>
-              Ticker Report pulls live quotes, company profiles, and TTM ratios from Financial Modeling Prep's
-              free tier (250 requests/day). Create a free account to get an API key.
+              Ticker Report pulls company fundamentals, quotes, balance sheets, and cash flow from Alpha
+              Vantage's free tier (25 requests/day, 5/min — a report uses about 4). Create a free account to
+              get an API key.
             </Text>
-            <Pressable onPress={() => Linking.openURL('https://site.financialmodelingprep.com/developer/docs/')}>
-              <Text style={styles.link}>site.financialmodelingprep.com/developer/docs →</Text>
+            <Pressable onPress={() => Linking.openURL('https://www.alphavantage.co/support/#api-key')}>
+              <Text style={styles.link}>alphavantage.co/support/#api-key →</Text>
             </Pressable>
             <Text style={styles.inputLabel}>API KEY</Text>
             <TextInput
               value={draftKey}
               onChangeText={setDraftKey}
-              placeholder="Paste your FMP API key"
+              placeholder="Paste your Alpha Vantage API key"
               placeholderTextColor={colors.textMuted}
               autoCapitalize="none"
               autoCorrect={false}

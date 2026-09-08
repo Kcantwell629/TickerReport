@@ -64,7 +64,7 @@ export default function HomeScreen({ navigation }: Props) {
               <PrimaryButton label="RUN REPORT" onPress={() => runReport()} disabled={!ticker.trim()} style={{ marginTop: spacing(4) }} />
               {!apiKey && (
                 <Text style={styles.hint}>
-                  No data source configured yet — tap the gear icon to add a free Financial Modeling Prep API key.
+                  No data source configured yet — tap the gear icon to add a free Alpha Vantage API key.
                 </Text>
               )}
             </View>
