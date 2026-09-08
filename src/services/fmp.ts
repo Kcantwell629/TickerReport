@@ -122,6 +122,7 @@ export interface NormalizedRatios {
   returnOnAssetsTTM: number | null;
   priceEarningsRatioTTM: number | null;
   dividendYieldTTM: number | null;
+  epsTTM: number | null;
 }
 
 export interface NormalizedKeyMetrics {
@@ -177,7 +178,16 @@ export async function fetchRatiosTTM(symbol: string, apiKey: string): Promise<No
     returnOnAssetsTTM: pick(item, 'returnOnAssetsTTM', 'roaTTM'),
     priceEarningsRatioTTM: pick(item, 'priceToEarningsRatioTTM', 'priceEarningsRatioTTM'),
     dividendYieldTTM: pick(item, 'dividendYieldTTM'),
+    epsTTM: pick(item, 'netIncomePerShareTTM', 'epsTTM'),
   };
+}
+
+/** Parses FMP's "17.45-38.25" 52-week range string. Returns nulls if unparseable. */
+export function parsePriceRange(range: string | null | undefined): { low: number | null; high: number | null } {
+  if (!range) return { low: null, high: null };
+  const parts = range.split('-').map((s) => parseFloat(s.trim()));
+  if (parts.length !== 2 || parts.some((n) => Number.isNaN(n))) return { low: null, high: null };
+  return { low: parts[0], high: parts[1] };
 }
 
 export async function fetchKeyMetricsTTM(symbol: string, apiKey: string): Promise<NormalizedKeyMetrics | null> {

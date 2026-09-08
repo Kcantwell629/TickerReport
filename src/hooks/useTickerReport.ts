@@ -7,6 +7,7 @@ import {
   fetchIncomeStatements,
   fetchCashFlowStatements,
   estimateEpsGrowthRate,
+  parsePriceRange,
   FmpError,
 } from '../services/fmp';
 
@@ -86,7 +87,9 @@ export function useTickerReport(symbol: string, apiKey: string) {
       const sym = symbol.trim().toUpperCase();
       const [profile, quote, ratios, keyMetrics, incomeStatements, cashFlows] = await Promise.all([
         labeled('profile', fetchProfile(sym, apiKey)),
-        labeled('quote', fetchQuote(sym, apiKey)),
+        // Real-time quote needs a paid FMP plan on some accounts — treat it as a bonus
+        // enrichment rather than a hard requirement; profile + ratios cover the essentials.
+        fetchQuote(sym, apiKey).catch(() => null),
         fetchRatiosTTM(sym, apiKey).catch(() => null),
         fetchKeyMetricsTTM(sym, apiKey).catch(() => null),
         fetchIncomeStatements(sym, apiKey, 6).catch(() => []),
@@ -95,6 +98,7 @@ export function useTickerReport(symbol: string, apiKey: string) {
 
       const latestIncome = incomeStatements[0];
       const latestCashFlow = cashFlows[0];
+      const profileRange = parsePriceRange(profile.range);
 
       const data: ReportData = {
         symbol: sym,
@@ -114,13 +118,13 @@ export function useTickerReport(symbol: string, apiKey: string) {
         image: profile.image ?? '',
         beta: typeof profile.beta === 'number' ? profile.beta : null,
 
-        price: quote.price ?? profile.price ?? 0,
-        changePercent: quote.changesPercentage ?? 0,
-        marketCap: quote.marketCap ?? profile.mktCap ?? 0,
-        yearHigh: quote.yearHigh ?? 0,
-        yearLow: quote.yearLow ?? 0,
-        eps: quote.eps ?? 0,
-        peRatio: quote.pe ?? (ratios ? ratios.priceEarningsRatioTTM : null) ?? null,
+        price: quote?.price ?? profile.price ?? 0,
+        changePercent: quote?.changesPercentage ?? 0,
+        marketCap: quote?.marketCap ?? profile.mktCap ?? 0,
+        yearHigh: quote?.yearHigh ?? profileRange.high ?? 0,
+        yearLow: quote?.yearLow ?? profileRange.low ?? 0,
+        eps: quote?.eps ?? ratios?.epsTTM ?? latestIncome?.epsdiluted ?? 0,
+        peRatio: quote?.pe ?? ratios?.priceEarningsRatioTTM ?? null,
 
         grossMargin: pct(ratios?.grossProfitMarginTTM),
         netMargin: pct(ratios?.netProfitMarginTTM),
