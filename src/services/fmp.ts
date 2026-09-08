@@ -38,6 +38,9 @@ async function fmpGet<T>(path: string, params: Record<string, string | number>, 
     if (res.status === 429) {
       throw new FmpError('Daily free-tier request limit reached. Try again tomorrow.', res.status);
     }
+    if (res.status === 402) {
+      throw new FmpError('This endpoint needs a paid Financial Modeling Prep plan — your free-tier key doesn\'t include it.', res.status);
+    }
     throw new FmpError(`Data provider returned an error (${res.status}).`, res.status);
   }
   const json = await res.json();

@@ -62,6 +62,16 @@ function pct(value: number | null | undefined): number | null {
   return value === null || value === undefined ? null : value * 100;
 }
 
+/** Tags a rejection with which endpoint it came from, so the surfaced error names the culprit. */
+async function labeled<T>(label: string, p: Promise<T>): Promise<T> {
+  try {
+    return await p;
+  } catch (e) {
+    if (e instanceof FmpError) throw new FmpError(`[${label}] ${e.message}`, e.status);
+    throw e;
+  }
+}
+
 export function useTickerReport(symbol: string, apiKey: string) {
   const [state, setState] = useState<State>({ loading: false, error: null, data: null });
 
@@ -75,8 +85,8 @@ export function useTickerReport(symbol: string, apiKey: string) {
     try {
       const sym = symbol.trim().toUpperCase();
       const [profile, quote, ratios, keyMetrics, incomeStatements, cashFlows] = await Promise.all([
-        fetchProfile(sym, apiKey),
-        fetchQuote(sym, apiKey),
+        labeled('profile', fetchProfile(sym, apiKey)),
+        labeled('quote', fetchQuote(sym, apiKey)),
         fetchRatiosTTM(sym, apiKey).catch(() => null),
         fetchKeyMetricsTTM(sym, apiKey).catch(() => null),
         fetchIncomeStatements(sym, apiKey, 6).catch(() => []),
