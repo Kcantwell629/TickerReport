@@ -85,15 +85,21 @@ export function useTickerReport(symbol: string, apiKey: string) {
     setState({ loading: true, error: null, data: null });
     try {
       const sym = symbol.trim().toUpperCase();
+      const soft = <T,>(label: string, fallback: T, p: Promise<T>): Promise<T> =>
+        p.catch((e) => {
+          console.warn(`[TickerReport] ${label} unavailable:`, e instanceof FmpError ? `${e.status} ${e.message}` : e);
+          return fallback;
+        });
+
       const [profile, quote, ratios, keyMetrics, incomeStatements, cashFlows] = await Promise.all([
         labeled('profile', fetchProfile(sym, apiKey)),
         // Real-time quote needs a paid FMP plan on some accounts — treat it as a bonus
         // enrichment rather than a hard requirement; profile + ratios cover the essentials.
-        fetchQuote(sym, apiKey).catch(() => null),
-        fetchRatiosTTM(sym, apiKey).catch(() => null),
-        fetchKeyMetricsTTM(sym, apiKey).catch(() => null),
-        fetchIncomeStatements(sym, apiKey, 6).catch(() => []),
-        fetchCashFlowStatements(sym, apiKey, 1).catch(() => []),
+        soft('quote', null, fetchQuote(sym, apiKey)),
+        soft('ratios-ttm', null, fetchRatiosTTM(sym, apiKey)),
+        soft('key-metrics-ttm', null, fetchKeyMetricsTTM(sym, apiKey)),
+        soft('income-statement', [], fetchIncomeStatements(sym, apiKey, 6)),
+        soft('cashflow-statement', [], fetchCashFlowStatements(sym, apiKey, 1)),
       ]);
 
       const latestIncome = incomeStatements[0];
