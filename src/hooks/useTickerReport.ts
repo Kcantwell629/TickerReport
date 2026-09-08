@@ -83,18 +83,26 @@ export function useTickerReport(symbol: string, apiKey: string) {
     try {
       const sym = symbol.trim().toUpperCase();
 
-      const soft = <T,>(label: string, fallback: T, p: Promise<T>): Promise<T> =>
-        p.catch((e) => {
+      const soft = async <T,>(label: string, fallback: T, p: Promise<T>): Promise<T> => {
+        try {
+          return await p;
+        } catch (e) {
           console.warn(`[TickerReport] ${label} unavailable:`, e instanceof AlphaVantageError ? e.message : e);
           return fallback;
-        });
+        }
+      };
+      const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-      const [overview, quote, balanceSheet, cashFlow] = await Promise.all([
-        labeled('overview', fetchOverview(sym, apiKey)),
-        soft('quote', { price: null, changePercent: null }, fetchQuote(sym, apiKey)),
-        soft('balance-sheet', null, fetchBalanceSheet(sym, apiKey)),
-        soft('cash-flow', null, fetchCashFlow(sym, apiKey)),
-      ]);
+      // Alpha Vantage's free key enforces ~1 request/second in addition to the 5/min,
+      // 25/day caps — firing these concurrently gets 3 of 4 calls rate-limited. Run
+      // them one at a time with a spacer instead (report takes a few seconds longer).
+      const overview = await labeled('overview', fetchOverview(sym, apiKey));
+      await sleep(1100);
+      const quote = await soft('quote', { price: null, changePercent: null }, fetchQuote(sym, apiKey));
+      await sleep(1100);
+      const balanceSheet = await soft('balance-sheet', null, fetchBalanceSheet(sym, apiKey));
+      await sleep(1100);
+      const cashFlow = await soft('cash-flow', null, fetchCashFlow(sym, apiKey));
 
       const currentRatio =
         balanceSheet?.totalCurrentAssets != null && balanceSheet?.totalCurrentLiabilities
