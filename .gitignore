@@ -36,6 +36,9 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-# generated native folders
+# IDE
+.idea/
+
+# /android is checked in (Gradle project) — not gitignored.
+# /ios isn't generated yet, so it stays ignored until it is.
 /ios
-/android
