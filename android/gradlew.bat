@@ -43,6 +43,18 @@ for %%i in ("%APP_HOME%") do set APP_HOME=%%~fi
 @rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
 set DEFAULT_JVM_OPTS="-Xmx64m" "-Xms64m"
 
+@rem JDK 24+ warns on restricted native-access calls; AGP's Prefab integration (used by
+@rem react-native-screens/expo-modules-core's native builds) shells out to its own JVM
+@rem subprocess for the `prefab` tool, whose stdout AGP naively scrapes for "errors" -
+@rem that warning line gets misread as a fatal error and fails the build. JAVA_TOOL_OPTIONS
+@rem is read by every JVM (including subprocesses gradlew spawns), so setting it here
+@rem covers Prefab too, unlike org.gradle.jvmargs in gradle.properties (daemon-only).
+if defined JAVA_TOOL_OPTIONS (
+  set "JAVA_TOOL_OPTIONS=%JAVA_TOOL_OPTIONS% --enable-native-access=ALL-UNNAMED"
+) else (
+  set "JAVA_TOOL_OPTIONS=--enable-native-access=ALL-UNNAMED"
+)
+
 @rem Find java.exe
 if defined JAVA_HOME goto findJavaFromJavaHome
 
