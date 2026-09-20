@@ -273,7 +273,15 @@ export default function ReportScreen({ route, navigation }: Props) {
               </SectionCard>
 
               {/* LIFECYCLE */}
-              <SectionCard eyebrow="Playbook §7" title="Business Life Cycle">
+              <SectionCard
+                eyebrow="Playbook §7"
+                title="Business Life Cycle"
+                right={
+                  <Pressable onPress={() => updateAssessment({ stageId: suggestLifecycleStage(data) })} hitSlop={8}>
+                    <Text style={styles.resetLink}>Suggest ↻</Text>
+                  </Pressable>
+                }
+              >
                 <StageStepper stageId={assessment.stageId} onChange={(stageId) => updateAssessment({ stageId })} />
               </SectionCard>
 
@@ -477,6 +485,7 @@ const styles = StyleSheet.create({
   tileGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   paragraph: { fontFamily: fonts.bodyRegular, fontSize: 13, lineHeight: 20, color: colors.textSecondary },
   helperText: { fontFamily: fonts.bodyRegular, fontSize: 11.5, color: colors.textMuted, marginBottom: spacing(2) },
+  resetLink: { fontFamily: fonts.mono, fontSize: 11, color: colors.teal, letterSpacing: 0.4 },
 
   flagGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 
