@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -38,6 +38,7 @@ import {
   buildAutoThesis,
   qualityLabel,
   priceLabel,
+  suggestLifecycleStage,
 } from '../services/playbook';
 import { Assessment, loadAssessment, saveAssessment } from '../services/reportStorage';
 import { formatCompactUsd, formatPct, formatUsd, formatX } from '../utils/format';
@@ -51,12 +52,36 @@ export default function ReportScreen({ route, navigation }: Props) {
   const { apiKey, aaaYieldPct, pushRecentTicker } = useAppState();
   const { loading, error, data, run } = useTickerReport(symbol, apiKey);
   const [assessment, setAssessment] = useState<Assessment | null>(null);
+  // True once we know this ticker has no saved assessment yet — safe to auto-suggest
+  // a life-cycle stage from the fetched fundamentals instead of the static default.
+  const canSuggestStage = useRef(false);
 
   useEffect(() => {
     run();
     pushRecentTicker(symbol);
-    loadAssessment(symbol).then(setAssessment);
+    canSuggestStage.current = false;
+    loadAssessment(symbol).then(({ assessment, isNew }) => {
+      setAssessment(assessment);
+      canSuggestStage.current = isNew;
+    });
   }, [symbol]);
+
+  // Seed the life-cycle stage from real fundamentals the first time this ticker's
+  // data loads, rather than always starting on the same fixed default — still just
+  // a starting guess the user can override via the stepper.
+  useEffect(() => {
+    if (!data || !assessment || !canSuggestStage.current) return;
+    canSuggestStage.current = false;
+    const suggested = suggestLifecycleStage({
+      netMargin: data.netMargin,
+      roe: data.roe,
+      dividendYield: data.dividendYield,
+      epsGrowthRatePct: data.epsGrowthRatePct,
+    });
+    if (suggested !== assessment.stageId) {
+      updateAssessment({ stageId: suggested });
+    }
+  }, [data, assessment]);
 
   const updateAssessment = (patch: Partial<Assessment>) => {
     setAssessment((prev) => {

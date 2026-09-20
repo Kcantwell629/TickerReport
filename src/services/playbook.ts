@@ -129,6 +129,44 @@ export const LIFECYCLE_STAGES = [
   { id: 6, label: 'Decline', question: 'Can we turn things around?' },
 ] as const;
 
+/**
+ * Rough, approximate starting guess at a company's life-cycle stage (Playbook §7),
+ * derived from the fundamentals we already have — never a substitute for the user's
+ * own judgment, which is why it only seeds the picker on a ticker's first run and
+ * the user can always override it afterward.
+ */
+export function suggestLifecycleStage(input: {
+  netMargin: number | null;
+  roe: number | null;
+  dividendYield: number | null;
+  epsGrowthRatePct: number | null;
+}): number {
+  const { netMargin, roe, dividendYield, epsGrowthRatePct } = input;
+  const growth = epsGrowthRatePct ?? 5; // our own estimator already falls back to 5 when unknown
+
+  // Unprofitable — most public companies with negative margins are later-stage,
+  // still-scaling growth stories rather than true seed-stage startups.
+  if (netMargin !== null && netMargin < 0) return 2; // Hyper Growth
+
+  // Mature, cash-returning: solid margins, meaningful dividend, low reinvestment growth.
+  if (dividendYield !== null && dividendYield >= 2 && netMargin !== null && netMargin >= 10 && growth < 8) {
+    return 5; // Capital Return
+  }
+
+  // Shrinking and unprofitable-ish at the same time — the Decline case.
+  if (growth < 0 && netMargin !== null && netMargin < 10) return 6; // Decline
+
+  // Profitable, growing fast, reinvesting rather than paying out — scaling hard.
+  if (netMargin !== null && netMargin >= 15 && roe !== null && roe >= 15 && growth >= 8) {
+    return 4; // Operating Leverage
+  }
+
+  // Modestly profitable, not yet compounding at scale.
+  if (netMargin !== null && netMargin >= 0 && netMargin < 15) return 3; // Self-Funding
+
+  return 4; // Not enough signal — same safe default as before.
+}
+
 // ---------------------------------------------------------------------------
 // Moat assessment (Playbook §6)
 // ---------------------------------------------------------------------------

@@ -29,14 +29,20 @@ export function defaultAssessment(): Assessment {
   };
 }
 
-export async function loadAssessment(symbol: string): Promise<Assessment> {
+export interface LoadedAssessment {
+  assessment: Assessment;
+  /** True when nothing was previously saved for this ticker — safe to auto-suggest a stage/moat read. */
+  isNew: boolean;
+}
+
+export async function loadAssessment(symbol: string): Promise<LoadedAssessment> {
   try {
     const raw = await AsyncStorage.getItem(keyFor(symbol));
-    if (!raw) return defaultAssessment();
+    if (!raw) return { assessment: defaultAssessment(), isNew: true };
     const parsed = JSON.parse(raw);
-    return { ...defaultAssessment(), ...parsed };
+    return { assessment: { ...defaultAssessment(), ...parsed }, isNew: false };
   } catch {
-    return defaultAssessment();
+    return { assessment: defaultAssessment(), isNew: true };
   }
 }
 
