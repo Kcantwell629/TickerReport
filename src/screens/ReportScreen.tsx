@@ -39,6 +39,8 @@ import {
   qualityLabel,
   priceLabel,
   suggestLifecycleStage,
+  suggestMoatRows,
+  isDefaultMoatRows,
 } from '../services/playbook';
 import { Assessment, loadAssessment, saveAssessment } from '../services/reportStorage';
 import { formatCompactUsd, formatPct, formatUsd, formatX } from '../utils/format';
@@ -52,35 +54,47 @@ export default function ReportScreen({ route, navigation }: Props) {
   const { apiKey, aaaYieldPct, pushRecentTicker } = useAppState();
   const { loading, error, data, run } = useTickerReport(symbol, apiKey);
   const [assessment, setAssessment] = useState<Assessment | null>(null);
-  // True once we know this ticker has no saved assessment yet — safe to auto-suggest
-  // a life-cycle stage from the fetched fundamentals instead of the static default.
-  const canSuggestStage = useRef(false);
+  // Set once we know which parts of this ticker's assessment are still untouched, so the
+  // fundamentals-based starting guesses only ever fill in blanks — never overwrite a choice.
+  //  - stage: only when nothing has been saved for this ticker yet
+  //  - moat:  also when the saved rows are just the old identical placeholder defaults
+  //           (opening a ticker used to persist those, so they'd otherwise stay stuck forever)
+  const canSeedStage = useRef(false);
+  const canSeedMoat = useRef(false);
 
   useEffect(() => {
     run();
     pushRecentTicker(symbol);
-    canSuggestStage.current = false;
+    canSeedStage.current = false;
+    canSeedMoat.current = false;
     loadAssessment(symbol).then(({ assessment, isNew }) => {
       setAssessment(assessment);
-      canSuggestStage.current = isNew;
+      canSeedStage.current = isNew;
+      canSeedMoat.current = isNew || isDefaultMoatRows(assessment.moatRows);
     });
   }, [symbol]);
 
-  // Seed the life-cycle stage from real fundamentals the first time this ticker's
-  // data loads, rather than always starting on the same fixed default — still just
-  // a starting guess the user can override via the stepper.
+  // Seed the life-cycle stage and moat from real fundamentals the first time this ticker's
+  // data loads, rather than the same fixed placeholder for every company. These are only
+  // starting guesses; every field stays editable.
   useEffect(() => {
-    if (!data || !assessment || !canSuggestStage.current) return;
-    canSuggestStage.current = false;
-    const suggested = suggestLifecycleStage({
-      netMargin: data.netMargin,
-      roe: data.roe,
-      dividendYield: data.dividendYield,
-      epsGrowthRatePct: data.epsGrowthRatePct,
-    });
-    if (suggested !== assessment.stageId) {
-      updateAssessment({ stageId: suggested });
+    if (!data || !assessment) return;
+    const patch: Partial<Assessment> = {};
+    if (canSeedStage.current) {
+      canSeedStage.current = false;
+      const stage = suggestLifecycleStage({
+        netMargin: data.netMargin,
+        roe: data.roe,
+        dividendYield: data.dividendYield,
+        epsGrowthRatePct: data.epsGrowthRatePct,
+      });
+      if (stage !== assessment.stageId) patch.stageId = stage;
     }
+    if (canSeedMoat.current) {
+      canSeedMoat.current = false;
+      patch.moatRows = suggestMoatRows(data);
+    }
+    if (Object.keys(patch).length > 0) updateAssessment(patch);
   }, [data, assessment]);
 
   const updateAssessment = (patch: Partial<Assessment>) => {
@@ -286,7 +300,15 @@ export default function ReportScreen({ route, navigation }: Props) {
               </SectionCard>
 
               {/* MOAT */}
-              <SectionCard eyebrow="Playbook §6" title="Moat Assessment">
+              <SectionCard
+                eyebrow="Playbook §6"
+                title="Moat Assessment"
+                right={
+                  <Pressable onPress={() => updateAssessment({ moatRows: suggestMoatRows(data) })} hitSlop={8}>
+                    <Text style={styles.resetLink}>Suggest ↻</Text>
+                  </Pressable>
+                }
+              >
                 <Text style={styles.helperText}>Source · current width · direction — score each candidate advantage.</Text>
                 {assessment.moatRows.map((row, i) => (
                   <MoatRowEditor

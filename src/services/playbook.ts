@@ -215,6 +215,89 @@ export function defaultMoatRows(): MoatRow[] {
   ];
 }
 
+/** True when the rows are still the untouched placeholder defaults (nothing chosen or typed). */
+export function isDefaultMoatRows(rows: MoatRow[]): boolean {
+  const d = defaultMoatRows();
+  return (
+    rows.length === d.length &&
+    rows.every((r, i) => r.source === d[i].source && r.width === d[i].width && r.direction === d[i].direction && !r.note)
+  );
+}
+
+type MoatSource = (typeof MOAT_SOURCES)[number];
+
+/** Which moat sources are most plausible for a company, most likely first, based on its sector. */
+function moatSourceCandidates(sector: string, industry: string, grossMargin: number | null): MoatSource[] {
+  const s = sector.toLowerCase();
+  const i = industry.toLowerCase();
+  const highGross = grossMargin !== null && grossMargin >= 40;
+
+  if (s.includes('communication') || /internet|social|marketplace|exchange|payment|platform/.test(i)) {
+    return ['Network Effect', 'Switching Costs', 'Intangibles'];
+  }
+  if (s.includes('technology')) return ['Switching Costs', 'Network Effect', 'Intangibles'];
+  if (s.includes('financial')) return ['Switching Costs', 'Intangibles', 'Network Effect'];
+  if (s.includes('health')) return ['Intangibles', 'Switching Costs', 'Low-Cost Producer'];
+  if (s.includes('consumer')) {
+    return highGross
+      ? ['Intangibles', 'Low-Cost Producer', 'Switching Costs']
+      : ['Low-Cost Producer', 'Intangibles', 'Switching Costs'];
+  }
+  if (/energy|material|utilit|industrial|real estate/.test(s)) {
+    return ['Low-Cost Producer', 'Intangibles', 'Switching Costs'];
+  }
+  return highGross
+    ? ['Intangibles', 'Switching Costs', 'Low-Cost Producer']
+    : ['Low-Cost Producer', 'Intangibles', 'Switching Costs'];
+}
+
+/**
+ * Rough starting read of the three moat rows (Playbook §6) from what the numbers and sector
+ * suggest — a sustained moat shows up as high returns on capital with fat margins (the same
+ * bars the Scorecard uses), and the sector hints at where the advantage most likely comes from.
+ * It's a seed for the editor, never a verdict: the user can change every field.
+ */
+export function suggestMoatRows(input: {
+  sector: string;
+  industry: string;
+  grossMargin: number | null;
+  netMargin: number | null;
+  roe: number | null;
+  roic: number | null;
+  epsGrowthRatePct: number | null;
+}): MoatRow[] {
+  const { sector, industry, grossMargin, netMargin, roe, roic, epsGrowthRatePct } = input;
+  const returns = roic ?? roe; // return on capital, falling back to ROE when ROIC is unavailable
+
+  let width: (typeof MOAT_WIDTHS)[number];
+  if (returns !== null && returns >= 15 && netMargin !== null && netMargin >= 15 && (grossMargin === null || grossMargin >= 40)) {
+    width = 'Wide';
+  } else if (returns !== null && returns >= 10 && netMargin !== null && netMargin >= 5) {
+    width = 'Narrow';
+  } else {
+    width = 'None';
+  }
+
+  const growth = epsGrowthRatePct ?? 0;
+  const direction: (typeof MOAT_DIRECTIONS)[number] = width !== 'None' && growth >= 12 ? 'Widening' : 'Stable';
+
+  const [first, second, third] = moatSourceCandidates(sector, industry, grossMargin);
+  const secondWidth: (typeof MOAT_WIDTHS)[number] = width === 'Wide' ? 'Narrow' : 'None';
+  const why =
+    `Suggested from fundamentals: ` +
+    `${roic !== null ? `ROIC ${roic.toFixed(0)}%` : roe !== null ? `ROE ${roe.toFixed(0)}%` : 'returns n/a'}, ` +
+    `net margin ${netMargin !== null ? `${netMargin.toFixed(0)}%` : 'n/a'}, ` +
+    `gross margin ${grossMargin !== null ? `${grossMargin.toFixed(0)}%` : 'n/a'}.`;
+
+  console.warn(`[TickerReport] suggestMoatRows → ${width}/${direction}`, { sector, industry, grossMargin, netMargin, roe, roic });
+
+  return [
+    { source: first, width, direction, note: why },
+    { source: second, width: secondWidth, direction: secondWidth === 'None' ? 'Stable' : direction, note: '' },
+    { source: third, width: 'None', direction: 'Stable', note: '' },
+  ];
+}
+
 // ---------------------------------------------------------------------------
 // Quality-of-earnings red flags (Playbook §5)
 // ---------------------------------------------------------------------------
