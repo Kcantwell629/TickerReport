@@ -33,10 +33,22 @@ async function avGet<T extends Record<string, unknown>>(params: Record<string, s
     throw new AlphaVantageError(`Data provider returned an error (${res.status}).`);
   }
   const json = (await res.json()) as Record<string, unknown>;
-  if (json['Error Message']) throw new AlphaVantageError(String(json['Error Message']));
-  if (json['Note']) throw new AlphaVantageError('Alpha Vantage rate limit hit (5/min or 25/day on the free tier). Wait a bit and retry.');
-  if (json['Information']) throw new AlphaVantageError(String(json['Information']));
+  if (json['Error Message']) throw new AlphaVantageError(redactKey(String(json['Error Message']), apiKey));
+  if (json['Note']) throw new AlphaVantageError(RATE_LIMIT_MESSAGE);
+  if (json['Information']) {
+    const info = String(json['Information']);
+    // The provider's quota message embeds the caller's API key verbatim, and this
+    // text is logged and shown on screen — so never pass it through as-is.
+    if (/rate limit|requests per day|premium/i.test(info)) throw new AlphaVantageError(RATE_LIMIT_MESSAGE);
+    throw new AlphaVantageError(redactKey(info, apiKey));
+  }
   return json as T;
+}
+
+const RATE_LIMIT_MESSAGE = 'Alpha Vantage rate limit hit (5/min or 25/day on the free tier). Wait a bit and retry.';
+
+function redactKey(text: string, apiKey: string): string {
+  return apiKey ? text.split(apiKey).join('[API key]') : text;
 }
 
 /** Alpha Vantage represents every number as a string, and "None" for missing. */
@@ -154,9 +166,22 @@ export async function fetchCashFlow(symbol: string, apiKey: string): Promise<Cas
   };
 }
 
-/** Quarterly YoY earnings growth is the closest free single-call proxy for Graham's 5yr growth rate g. */
+/** Cyclical businesses swing wildly with the commodity cycle, so one quarter's YoY change says little about long-run growth. */
+function isCyclical(overview: Overview): boolean {
+  return /energy|\boil\b|materials|mining|metals|steel|chemical|shipping|marine/i.test(`${overview.sector} ${overview.industry}`);
+}
+
+const MAX_GROWTH_PCT = 15;
+const MAX_CYCLICAL_GROWTH_PCT = 8;
+
+/**
+ * Quarterly YoY earnings growth is the closest free single-call proxy for Graham's 5yr growth rate g.
+ * It is a single noisy data point, so it is capped well below the raw value — tighter for cyclicals,
+ * where a rebound off a low base would otherwise read as a long-run growth story.
+ */
 export function estimateGrowthRatePct(overview: Overview): number {
   const g = overview.quarterlyEarningsGrowthYOY;
   if (g === null) return 5; // conservative fallback
-  return Math.max(0, Math.min(20, g * 100));
+  const cap = isCyclical(overview) ? MAX_CYCLICAL_GROWTH_PCT : MAX_GROWTH_PCT;
+  return Math.max(0, Math.min(cap, g * 100));
 }
