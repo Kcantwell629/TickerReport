@@ -29,13 +29,14 @@ ticker, so re-running a report later remembers your last assessment.
 
 ## Data source
 
-Live data comes from [Alpha Vantage](https://www.alphavantage.co/support/#api-key),
-which has a genuinely free tier (25 requests/day, 5/min, no credit card — a report
-uses about 4 calls). Get a key, then paste it into the app's **Settings** screen —
-nothing is hardcoded, and the key stays on-device (`AsyncStorage`).
+Live data comes from [Finnhub](https://finnhub.io/register), which has a free tier
+(60 requests/minute, no credit card — a report uses 3 calls: profile, quote and basic
+financials; US-listed stocks only). Get a key, then paste it into the app's **Settings**
+screen — nothing is hardcoded, and the key stays on-device (`AsyncStorage`).
 
-(An earlier version used Financial Modeling Prep, but its free tier turned out to
-cover only company profile data — every ratio/statement endpoint needed a paid plan.)
+Earlier versions used Financial Modeling Prep (its free tier only covered company
+profiles) and then Alpha Vantage (its Company Overview endpoint, which every report
+depended on, moved to a paid plan in October 2026).
 
 Also in Settings: the **AAA corporate bond yield (Y)** used in the Graham formula.
 Update it occasionally from a source like FRED's Moody's Seasoned Aaa series.
@@ -57,7 +58,7 @@ press `w` in the terminal to preview in a browser tab.
 src/
   theme/            colors, type scale, grade→color mapping (dark teal/orange, per the moodboard)
   services/
-    alphaVantage.ts Alpha Vantage API client
+    finnhub.ts      Finnhub API client (profile, quote, basic financials)
     playbook.ts      Playbook thresholds, grading, Graham formula, red-flag rules
     reportStorage.ts per-ticker saved assessment (moat/lifecycle/rating/notes)
   hooks/

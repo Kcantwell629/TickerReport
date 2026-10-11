@@ -235,15 +235,15 @@ function moatSourceCandidates(sector: string, industry: string, grossMargin: num
   if (s.includes('communication') || /internet|social|marketplace|exchange|payment|platform/.test(i)) {
     return ['Network Effect', 'Switching Costs', 'Intangibles'];
   }
-  if (s.includes('technology')) return ['Switching Costs', 'Network Effect', 'Intangibles'];
-  if (s.includes('financial')) return ['Switching Costs', 'Intangibles', 'Network Effect'];
-  if (s.includes('health')) return ['Intangibles', 'Switching Costs', 'Low-Cost Producer'];
-  if (s.includes('consumer')) {
+  if (s.includes('technology') || /semiconductor/.test(s)) return ['Switching Costs', 'Network Effect', 'Intangibles'];
+  if (s.includes('financial') || /banking|insurance/.test(s)) return ['Switching Costs', 'Intangibles', 'Network Effect'];
+  if (s.includes('health') || /pharma|biotech|life sciences/.test(s)) return ['Intangibles', 'Switching Costs', 'Low-Cost Producer'];
+  if (s.includes('consumer') || /beverage|food|household|tobacco|retail|luxury|restaurant|apparel/.test(s)) {
     return highGross
       ? ['Intangibles', 'Low-Cost Producer', 'Switching Costs']
       : ['Low-Cost Producer', 'Intangibles', 'Switching Costs'];
   }
-  if (/energy|material|utilit|industrial|real estate/.test(s)) {
+  if (/energy|material|utilit|industrial|real estate|metals|mining|chemical|machinery|construction|building|transportation|logistics|airline|aerospace|marine/.test(s)) {
     return ['Low-Cost Producer', 'Intangibles', 'Switching Costs'];
   }
   return highGross

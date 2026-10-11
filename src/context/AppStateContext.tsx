@@ -2,7 +2,8 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const KEYS = {
-  apiKey: 'ticker-report/apiKey',
+  // Not 'ticker-report/apiKey': that held an Alpha Vantage key, which Finnhub would reject.
+  apiKey: 'ticker-report/finnhubKey',
   recent: 'ticker-report/recentTickers',
   aaaYield: 'ticker-report/aaaYield',
 };

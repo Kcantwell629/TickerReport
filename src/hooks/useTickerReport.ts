@@ -1,12 +1,5 @@
 import { useCallback, useState } from 'react';
-import {
-  fetchOverview,
-  fetchQuote,
-  fetchBalanceSheet,
-  fetchCashFlow,
-  estimateGrowthRatePct,
-  AlphaVantageError,
-} from '../services/alphaVantage';
+import { fetchProfile, fetchQuote, fetchMetrics, estimateGrowthRatePct, FinnhubError } from '../services/finnhub';
 
 export interface ReportData {
   symbol: string;
@@ -55,17 +48,12 @@ interface State {
   data: ReportData | null;
 }
 
-/** value*100 unless null/undefined, in which case stays null (never coerces to 0). */
-function pct(value: number | null | undefined): number | null {
-  return value === null || value === undefined ? null : value * 100;
-}
-
 /** Tags a rejection with which endpoint it came from, so the surfaced error names the culprit. */
 async function labeled<T>(label: string, p: Promise<T>): Promise<T> {
   try {
     return await p;
   } catch (e) {
-    if (e instanceof AlphaVantageError) throw new AlphaVantageError(`[${label}] ${e.message}`);
+    if (e instanceof FinnhubError) throw new FinnhubError(`[${label}] ${e.message}`);
     throw e;
   }
 }
@@ -76,7 +64,7 @@ export function useTickerReport(symbol: string, apiKey: string) {
   const run = useCallback(async () => {
     if (!symbol) return;
     if (!apiKey) {
-      setState({ loading: false, error: 'Add a free Alpha Vantage API key in Settings to pull live data.', data: null });
+      setState({ loading: false, error: 'Add a free Finnhub API key in Settings to pull live data.', data: null });
       return;
     }
     setState({ loading: true, error: null, data: null });
@@ -87,94 +75,85 @@ export function useTickerReport(symbol: string, apiKey: string) {
         try {
           return await p;
         } catch (e) {
-          console.warn(`[TickerReport] ${label} unavailable:`, e instanceof AlphaVantageError ? e.message : e);
+          console.warn(`[TickerReport] ${label} unavailable:`, e instanceof FinnhubError ? e.message : e);
           return fallback;
         }
       };
       const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-      // Alpha Vantage's free key enforces ~1 request/second in addition to the 5/min,
-      // 25/day caps — firing these concurrently gets 3 of 4 calls rate-limited. Run
-      // them one at a time with a spacer instead (report takes a few seconds longer).
-      const overview = await labeled('overview', fetchOverview(sym, apiKey));
-      await sleep(1100);
-      const quote = await soft('quote', { price: null, changePercent: null }, fetchQuote(sym, apiKey));
-      await sleep(1100);
-      const balanceSheet = await soft('balance-sheet', null, fetchBalanceSheet(sym, apiKey));
-      await sleep(1100);
-      const cashFlow = await soft('cash-flow', null, fetchCashFlow(sym, apiKey));
+      // Finnhub's free tier allows 60 requests/min, so the three calls can run together.
+      // Only the profile is required; quote and metrics degrade to blanks if they fail.
+      const [profile, quote, metrics] = await Promise.all([
+        labeled('profile', fetchProfile(sym, apiKey)),
+        soft('quote', { price: null, changePercent: null }, fetchQuote(sym, apiKey)),
+        soft('metrics', null, fetchMetrics(sym, apiKey)),
+      ]);
 
-      const currentRatio =
-        balanceSheet?.totalCurrentAssets != null && balanceSheet?.totalCurrentLiabilities
-          ? balanceSheet.totalCurrentAssets / balanceSheet.totalCurrentLiabilities
-          : null;
-      const debtToEquity =
-        balanceSheet?.totalLiabilities != null && balanceSheet?.totalShareholderEquity
-          ? balanceSheet.totalLiabilities / balanceSheet.totalShareholderEquity
-          : null;
-      // No NOPAT/invested-capital breakdown on the free tier — approximate ROIC as
-      // net income over (equity + total debt). A guideline figure, not exact.
-      const investedCapital =
-        balanceSheet?.totalShareholderEquity != null
-          ? balanceSheet.totalShareholderEquity + (balanceSheet.shortLongTermDebtTotal ?? 0)
-          : null;
-      const roic =
-        investedCapital && investedCapital > 0 && cashFlow?.netIncome != null
-          ? (cashFlow.netIncome / investedCapital) * 100
-          : null;
-      const freeCashFlow =
-        cashFlow?.operatingCashflow != null && cashFlow?.capitalExpenditures != null
-          ? cashFlow.operatingCashflow - cashFlow.capitalExpenditures
-          : null;
-      const grossMargin =
-        overview.grossProfitTTM != null && overview.revenueTTM
-          ? (overview.grossProfitTTM / overview.revenueTTM) * 100
-          : null;
+      // Finnhub gives per-share cash-flow and revenue figures; scale by shares outstanding.
+      const shares = profile.sharesOutstanding;
+      const perShare = (v: number | null | undefined) => (v != null && shares ? v * shares : null);
+      const m = metrics;
+
+      console.warn('[TickerReport] metrics →', {
+        symbol: sym,
+        industry: profile.industry,
+        marketCap: profile.marketCap,
+        eps: m?.eps,
+        pe: m?.peRatio,
+        grossMargin: m?.grossMargin,
+        netMargin: m?.netMargin,
+        roe: m?.roe,
+        roic: m?.roic,
+        currentRatio: m?.currentRatio,
+        debtToEquity: m?.debtToEquity,
+        dividendYield: m?.dividendYield,
+        epsGrowthPct: m?.epsGrowthPct,
+      });
 
       const data: ReportData = {
         symbol: sym,
-        companyName: overview.name ?? sym,
-        exchange: overview.exchange ?? '',
-        currency: overview.currency ?? 'USD',
-        sector: overview.sector ?? '—',
-        industry: overview.industry ?? '—',
-        description: overview.description ?? '',
-        ceo: '—', // not available from Alpha Vantage's free OVERVIEW endpoint
+        companyName: profile.name,
+        exchange: profile.exchange,
+        currency: profile.currency,
+        sector: profile.industry, // Finnhub only classifies by industry
+        industry: profile.industry,
+        description: '', // not on Finnhub's free profile
+        ceo: '—',
         city: '',
         state: '',
-        country: overview.country ?? '',
-        employees: '—', // not available from Alpha Vantage's free OVERVIEW endpoint
-        ipoDate: '—',
-        website: '',
-        image: '',
-        beta: overview.beta,
+        country: profile.country,
+        employees: '—',
+        ipoDate: profile.ipo || '—',
+        website: profile.website,
+        image: profile.logo,
+        beta: m?.beta ?? null,
 
         price: quote.price ?? 0,
         changePercent: quote.changePercent ?? 0,
-        marketCap: overview.marketCap ?? 0,
-        yearHigh: overview.week52High ?? 0,
-        yearLow: overview.week52Low ?? 0,
-        eps: overview.eps ?? 0,
-        peRatio: overview.peRatio,
+        marketCap: profile.marketCap ?? 0,
+        yearHigh: m?.week52High ?? 0,
+        yearLow: m?.week52Low ?? 0,
+        eps: m?.eps ?? 0,
+        peRatio: m?.peRatio ?? null,
 
-        grossMargin,
-        netMargin: pct(overview.profitMargin),
-        roe: pct(overview.returnOnEquityTTM),
-        roic,
-        currentRatio,
-        debtToEquity,
-        dividendYield: pct(overview.dividendYield),
+        grossMargin: m?.grossMargin ?? null,
+        netMargin: m?.netMargin ?? null,
+        roe: m?.roe ?? null,
+        roic: m?.roic ?? null,
+        currentRatio: m?.currentRatio ?? null,
+        debtToEquity: m?.debtToEquity ?? null,
+        dividendYield: m?.dividendYield ?? null,
 
-        revenueTTM: overview.revenueTTM,
-        netIncomeTTM: cashFlow?.netIncome ?? null,
-        operatingCashFlow: cashFlow?.operatingCashflow ?? null,
-        freeCashFlow,
-        epsGrowthRatePct: estimateGrowthRatePct(overview),
+        revenueTTM: perShare(m?.revenuePerShare),
+        netIncomeTTM: perShare(m?.eps), // EPS x shares outstanding: an approximation of TTM net income
+        operatingCashFlow: perShare(m?.cashFlowPerShare),
+        freeCashFlow: perShare(m?.freeCashFlowPerShare),
+        epsGrowthRatePct: estimateGrowthRatePct(m?.epsGrowthPct ?? null, profile.industry),
       };
 
       setState({ loading: false, error: null, data });
     } catch (e) {
-      const message = e instanceof AlphaVantageError ? e.message : 'Something went wrong fetching this ticker.';
+      const message = e instanceof FinnhubError ? e.message : 'Something went wrong fetching this ticker.';
       setState({ loading: false, error: message, data: null });
     }
   }, [symbol, apiKey]);

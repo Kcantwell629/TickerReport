@@ -37,20 +37,20 @@ export default function SettingsScreen({ navigation }: Props) {
             <View style={{ width: 42 }} />
           </View>
 
-          <SectionCard eyebrow="Data Source" title="Alpha Vantage">
+          <SectionCard eyebrow="Data Source" title="Finnhub">
             <Text style={styles.body}>
-              Ticker Report pulls company fundamentals, quotes, balance sheets, and cash flow from Alpha
-              Vantage's free tier (25 requests/day, 5/min — a report uses about 4). Create a free account to
+              Ticker Report pulls company profiles, quotes, and key financial metrics from Finnhub's free
+              tier (60 requests/minute — a report uses 3). US-listed stocks only. Create a free account to
               get an API key.
             </Text>
-            <Pressable onPress={() => Linking.openURL('https://www.alphavantage.co/support/#api-key')}>
-              <Text style={styles.link}>alphavantage.co/support/#api-key →</Text>
+            <Pressable onPress={() => Linking.openURL('https://finnhub.io/register')}>
+              <Text style={styles.link}>finnhub.io/register →</Text>
             </Pressable>
             <Text style={styles.inputLabel}>API KEY</Text>
             <TextInput
               value={draftKey}
               onChangeText={setDraftKey}
-              placeholder="Paste your Alpha Vantage API key"
+              placeholder="Paste your Finnhub API key"
               placeholderTextColor={colors.textMuted}
               autoCapitalize="none"
               autoCorrect={false}
