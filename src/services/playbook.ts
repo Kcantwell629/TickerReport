@@ -364,16 +364,31 @@ export function buildFlags(input: {
 
   // Cash return / earnings quality: OCF vs Net Income
   if (input.operatingCashFlow !== null && input.netIncome !== null && input.netIncome !== 0) {
-    const ok = input.operatingCashFlow > input.netIncome;
-    flags.push({
-      id: 'cashReturn',
-      title: 'Cash Return',
-      reading: ok ? 'OCF > NI' : 'OCF < NI',
-      detail: ok
-        ? 'Operating cash flow exceeds net income — healthy earnings quality per the Playbook rule.'
-        : 'Operating cash flow trails net income — a low-quality-earnings flag per the Playbook.',
-      severity: ok ? 'PASS' : 'WATCH',
-    });
+    if (input.netIncome < 0) {
+      // "OCF > NI" is trivially true against a loss (even -$2B beats -$5B), so it says nothing
+      // about earnings quality. Grade on whether the business still generates cash instead.
+      const cashPositive = input.operatingCashFlow > 0;
+      flags.push({
+        id: 'cashReturn',
+        title: 'Cash Return',
+        reading: cashPositive ? 'NI < 0 · OCF > 0' : 'NI < 0 · OCF < 0',
+        detail: cashPositive
+          ? 'Net income is negative, so the OCF-vs-NI test does not apply. Operating cash flow is still positive — check what is driving the accounting loss.'
+          : 'Net income and operating cash flow are both negative — the business is burning cash; confirm the balance sheet can fund the gap.',
+        severity: cashPositive ? 'WATCH' : 'FAIL',
+      });
+    } else {
+      const ok = input.operatingCashFlow > input.netIncome;
+      flags.push({
+        id: 'cashReturn',
+        title: 'Cash Return',
+        reading: ok ? 'OCF > NI' : 'OCF < NI',
+        detail: ok
+          ? 'Operating cash flow exceeds net income — healthy earnings quality per the Playbook rule.'
+          : 'Operating cash flow trails net income — a low-quality-earnings flag per the Playbook.',
+        severity: ok ? 'PASS' : 'WATCH',
+      });
+    }
   }
 
   return flags;
