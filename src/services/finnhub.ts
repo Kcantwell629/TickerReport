@@ -146,6 +146,17 @@ export async function fetchMetrics(symbol: string, apiKey: string): Promise<Metr
   };
 }
 
+/**
+ * Dual-class stocks (BRK.B) come back with the quote for one share class but per-share metrics
+ * (52-week range, EPS, cash flow per share) for another — BRK.B's $515 price next to a
+ * $698,000+ 52-week range. A price far outside its own 52-week range can only be that mismatch,
+ * so the per-share figures can't be trusted alongside it.
+ */
+export function isShareClassMismatch(price: number | null, low: number | null, high: number | null): boolean {
+  if (price === null || low === null || high === null || low <= 0 || high <= 0) return false;
+  return price < low * 0.5 || price > high * 2;
+}
+
 /** Cyclical businesses swing wildly with the commodity cycle, so recent growth says little about long-run growth. */
 function isCyclical(industry: string): boolean {
   return /energy|\boil\b|materials|mining|metals|steel|chemical|shipping|marine/i.test(industry);

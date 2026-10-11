@@ -162,7 +162,8 @@ export default function ReportScreen({ route, navigation }: Props) {
     }
   };
 
-  const rangeFraction = data && data.yearHigh > data.yearLow ? (data.price - data.yearLow) / (data.yearHigh - data.yearLow) : 0.5;
+  const hasRange = !!data && data.yearLow > 0 && data.yearHigh > data.yearLow;
+  const rangeFraction = data && hasRange ? (data.price - data.yearLow) / (data.yearHigh - data.yearLow) : 0.5;
   const quality = data ? qualityLabel(data.netMargin, data.roe) : 'UNRATED';
   const priceTag = graham ? priceLabel(graham.priceVsIntrinsic) : 'UNRATED';
   const moatHeadline = assessment?.moatRows.find((r) => r.width === 'Wide')
@@ -255,11 +256,13 @@ export default function ReportScreen({ route, navigation }: Props) {
 
                 <View style={styles.rangeWrap}>
                   <View style={styles.rangeTrack}>
-                    <View style={[styles.rangeDot, { left: `${Math.max(2, Math.min(98, rangeFraction * 100))}%` }]} />
+                    {hasRange && (
+                      <View style={[styles.rangeDot, { left: `${Math.max(2, Math.min(98, rangeFraction * 100))}%` }]} />
+                    )}
                   </View>
                   <View style={styles.rangeLabels}>
-                    <Text style={styles.rangeText}>52W LOW {formatUsd(data.yearLow)}</Text>
-                    <Text style={styles.rangeText}>52W HIGH {formatUsd(data.yearHigh)}</Text>
+                    <Text style={styles.rangeText}>52W LOW {hasRange ? formatUsd(data.yearLow) : '—'}</Text>
+                    <Text style={styles.rangeText}>52W HIGH {hasRange ? formatUsd(data.yearHigh) : '—'}</Text>
                   </View>
                 </View>
 

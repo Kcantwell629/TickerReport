@@ -1,5 +1,12 @@
 import { useCallback, useState } from 'react';
-import { fetchProfile, fetchQuote, fetchMetrics, estimateGrowthRatePct, FinnhubError } from '../services/finnhub';
+import {
+  fetchProfile,
+  fetchQuote,
+  fetchMetrics,
+  estimateGrowthRatePct,
+  isShareClassMismatch,
+  FinnhubError,
+} from '../services/finnhub';
 
 export interface ReportData {
   symbol: string;
@@ -90,9 +97,24 @@ export function useTickerReport(symbol: string, apiKey: string) {
       ]);
 
       // Finnhub gives per-share cash-flow and revenue figures; scale by shares outstanding.
-      const shares = profile.sharesOutstanding;
-      const perShare = (v: number | null | undefined) => (v != null && shares ? v * shares : null);
       const m = metrics;
+      const shareClassMismatch = isShareClassMismatch(quote.price, m?.week52Low ?? null, m?.week52High ?? null);
+      if (shareClassMismatch) {
+        console.warn('[TickerReport] price is outside the 52-week range: per-share metrics are for another share class', {
+          symbol: sym,
+          price: quote.price,
+          week52Low: m?.week52Low,
+          week52High: m?.week52High,
+        });
+      }
+      const shares = profile.sharesOutstanding;
+      const perShare = (v: number | null | undefined) => (!shareClassMismatch && v != null && shares ? v * shares : null);
+      // P/E is class-consistent, so price / P/E recovers an EPS that matches the quoted price.
+      const eps = shareClassMismatch
+        ? quote.price && m?.peRatio && m.peRatio > 0
+          ? quote.price / m.peRatio
+          : 0
+        : m?.eps ?? 0;
 
       console.warn('[TickerReport] metrics →', {
         symbol: sym,
@@ -131,9 +153,9 @@ export function useTickerReport(symbol: string, apiKey: string) {
         price: quote.price ?? 0,
         changePercent: quote.changePercent ?? 0,
         marketCap: profile.marketCap ?? 0,
-        yearHigh: m?.week52High ?? 0,
-        yearLow: m?.week52Low ?? 0,
-        eps: m?.eps ?? 0,
+        yearHigh: shareClassMismatch ? 0 : m?.week52High ?? 0,
+        yearLow: shareClassMismatch ? 0 : m?.week52Low ?? 0,
+        eps,
         peRatio: m?.peRatio ?? null,
 
         grossMargin: m?.grossMargin ?? null,

@@ -267,7 +267,11 @@ export function suggestMoatRows(input: {
   epsGrowthRatePct: number | null;
 }): MoatRow[] {
   const { sector, industry, grossMargin, netMargin, roe, roic, epsGrowthRatePct } = input;
-  const returns = roic ?? roe; // return on capital, falling back to ROE when ROIC is unavailable
+  // Return on capital, falling back to ROE when ROIC is unavailable. For banks, insurers and other
+  // financials, "invested capital" is mostly deposits/float, so ROIC reads near zero by construction
+  // and says nothing about the moat — ROE is the meaningful return there.
+  const isFinancial = /bank|insur|financ/i.test(`${sector} ${industry}`);
+  const returns = isFinancial ? roe : roic ?? roe;
 
   let width: (typeof MOAT_WIDTHS)[number];
   if (returns !== null && returns >= 15 && netMargin !== null && netMargin >= 15 && (grossMargin === null || grossMargin >= 40)) {
