@@ -434,6 +434,60 @@ export function buildAutoThesis(input: {
   return { bull, bear };
 }
 
+/**
+ * One-line takeaway for the Verdict card, assembled from the same numbers the badges use:
+ * valuation lead + quality noun + moat clause + at most one caveat. It is a starting point for
+ * the editor, never a verdict, and it leaves out anything it has no data for.
+ */
+export function suggestHeadline(input: {
+  netMargin: number | null;
+  roe: number | null;
+  eps: number | null;
+  peRatio: number | null;
+  priceVsIntrinsic: number | null; // price / Graham intrinsic value
+  debtToEquity: number | null;
+  currentRatio: number | null;
+  dividendYield: number | null;
+  industry: string;
+  moatWidth: 'Wide' | 'Narrow' | 'None';
+}): string {
+  const { netMargin, roe, eps, peRatio, priceVsIntrinsic, debtToEquity, currentRatio, dividendYield, industry, moatWidth } = input;
+  const lossMaking = (eps !== null && eps <= 0) || (netMargin !== null && netMargin < 0);
+  const isFinancial = /bank|insur|financ/i.test(industry);
+
+  let lead: string;
+  if (lossMaking) lead = 'Loss-making';
+  else if (priceVsIntrinsic !== null && priceVsIntrinsic > 0) {
+    if (priceVsIntrinsic <= 0.67) lead = 'Deeply discounted';
+    else if (priceVsIntrinsic <= 0.9) lead = 'Attractively priced';
+    else if (priceVsIntrinsic <= 1.1) lead = 'Fairly valued';
+    else lead = 'Richly valued';
+  } else if (peRatio !== null && peRatio > 0) {
+    lead = peRatio <= 15 ? 'Cheaply priced' : peRatio <= 25 ? 'Fairly priced' : 'Richly priced';
+  } else lead = 'Valuation unclear for this';
+
+  const quality = qualityLabel(netMargin, roe);
+  const noun =
+    lossMaking || quality === 'WEAK' || quality === 'UNRATED'
+      ? 'business'
+      : quality === 'HIGH QUALITY'
+      ? 'high-quality compounder'
+      : quality === 'SOLID'
+      ? 'solid business'
+      : 'thin-margin cyclical';
+
+  const moat = moatWidth === 'Wide' ? ' with a wide moat' : moatWidth === 'Narrow' ? ' with a narrow moat' : ' with no clear moat';
+
+  // Banks and insurers run on leverage by construction, so the D/E bar says nothing there.
+  let caveat = '';
+  if (!isFinancial && debtToEquity !== null && debtToEquity > 1.5) caveat = ', though heavily leveraged';
+  else if (!isFinancial && debtToEquity !== null && debtToEquity > 1) caveat = ', though leveraged';
+  else if (currentRatio !== null && currentRatio < 1) caveat = ', with tight liquidity';
+  else if (dividendYield !== null && dividendYield >= 3) caveat = `, paying a ~${dividendYield.toFixed(1)}% yield`;
+
+  return `${lead} ${noun}${moat}${caveat}.`;
+}
+
 export function qualityLabel(netMargin: number | null, roe: number | null): string {
   if (netMargin === null || roe === null) return 'UNRATED';
   if (netMargin >= 20 && roe >= 20) return 'HIGH QUALITY';

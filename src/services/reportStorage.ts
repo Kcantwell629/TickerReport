@@ -7,6 +7,11 @@ export interface Assessment {
   stageId: number;
   moatRows: MoatRow[];
   headline: string;
+  /**
+   * True while the headline is the app's own suggestion (kept in step with the data and moat);
+   * false once the user has typed or cleared it. Undefined on older saves: non-empty text is the user's.
+   */
+  headlineAuto?: boolean;
   extraBull: string;
   extraBear: string;
   rating: Rating;

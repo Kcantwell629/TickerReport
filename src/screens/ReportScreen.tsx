@@ -38,6 +38,7 @@ import {
   buildAutoThesis,
   qualityLabel,
   priceLabel,
+  suggestHeadline,
   suggestLifecycleStage,
   suggestMoatRows,
   isDefaultMoatRows,
@@ -171,6 +172,33 @@ export default function ReportScreen({ route, navigation }: Props) {
     : assessment?.moatRows.some((r) => r.width === 'Narrow')
     ? 'NARROW'
     : 'NONE';
+
+  // The takeaway is derived from the same inputs as the badges below it, so it differs per
+  // ticker and follows the moat/stage the user sets — until they write their own.
+  const autoHeadline = useMemo(() => {
+    if (!data) return '';
+    const width = moatHeadline === 'WIDE' ? 'Wide' : moatHeadline === 'NARROW' ? 'Narrow' : 'None';
+    return suggestHeadline({
+      netMargin: data.netMargin,
+      roe: data.roe,
+      eps: data.eps,
+      peRatio: data.peRatio,
+      priceVsIntrinsic: graham?.priceVsIntrinsic ?? null,
+      debtToEquity: data.debtToEquity,
+      currentRatio: data.currentRatio,
+      dividendYield: data.dividendYield,
+      industry: data.industry,
+      moatWidth: width,
+    });
+  }, [data, graham, moatHeadline]);
+
+  useEffect(() => {
+    if (!assessment || !autoHeadline) return;
+    const following = assessment.headlineAuto === true || (assessment.headlineAuto === undefined && assessment.headline === '');
+    if (following && assessment.headline !== autoHeadline) {
+      updateAssessment({ headline: autoHeadline, headlineAuto: true });
+    }
+  }, [assessment, autoHeadline]);
 
   const fitScore = useMemo(() => {
     if (!data) return null;
@@ -419,13 +447,21 @@ export default function ReportScreen({ route, navigation }: Props) {
               </SectionCard>
 
               {/* SYNTHESIS */}
-              <SectionCard eyebrow="Analyst's Synthesis" title="Verdict">
+              <SectionCard
+                eyebrow="Analyst's Synthesis"
+                title="Verdict"
+                right={
+                  <Pressable onPress={() => updateAssessment({ headline: autoHeadline, headlineAuto: true })} hitSlop={8}>
+                    <Text style={styles.resetLink}>Suggest ↻</Text>
+                  </Pressable>
+                }
+              >
                 <TextInput
                   style={styles.headlineInput}
                   placeholder="One-line takeaway (e.g. Cheap and cash-rich, but cyclical.)"
                   placeholderTextColor={colors.textMuted}
                   value={assessment.headline}
-                  onChangeText={(headline) => updateAssessment({ headline })}
+                  onChangeText={(headline) => updateAssessment({ headline, headlineAuto: false })}
                   multiline
                 />
                 <View style={styles.synthesisBadges}>
