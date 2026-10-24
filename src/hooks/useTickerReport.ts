@@ -107,6 +107,8 @@ export function useTickerReport(symbol: string, apiKey: string) {
           week52High: m?.week52High,
         });
       }
+      const fromRatio = (price: number | null, ratio: number | null | undefined) =>
+        price != null && ratio ? price / ratio : null;
       const shares = profile.sharesOutstanding;
       const perShare = (v: number | null | undefined) => (!shareClassMismatch && v != null && shares ? v * shares : null);
       // P/E is class-consistent, so price / P/E recovers an EPS that matches the quoted price.
@@ -167,9 +169,11 @@ export function useTickerReport(symbol: string, apiKey: string) {
         dividendYield: m?.dividendYield ?? null,
 
         revenueTTM: perShare(m?.revenuePerShare),
-        netIncomeTTM: perShare(m?.eps), // EPS x shares outstanding: an approximation of TTM net income
-        operatingCashFlow: perShare(m?.cashFlowPerShare),
-        freeCashFlow: perShare(m?.freeCashFlowPerShare),
+        // The next three are latest-fiscal-year figures on the same footing, so OCF vs net income is
+        // apples to apples. Operating cash flow per share = price / (price-to-cash-flow ratio).
+        netIncomeTTM: perShare(m?.epsAnnual),
+        operatingCashFlow: perShare(fromRatio(quote.price, m?.pcfShareAnnual)),
+        freeCashFlow: perShare(fromRatio(quote.price, m?.pfcfShareAnnual)),
         epsGrowthRatePct: estimateGrowthRatePct(m?.epsGrowthPct ?? null, profile.industry),
       };
 

@@ -117,8 +117,14 @@ export interface Metrics {
   debtToEquity: number | null; // ratio
   dividendYield: number | null; // percent
   revenuePerShare: number | null;
-  cashFlowPerShare: number | null;
-  freeCashFlowPerShare: number | null;
+  /**
+   * Finnhub's price-to-cash-flow ratios (annual). Operating cash flow per share = price / pcfShareAnnual and
+   * free cash flow per share = price / pfcfShareAnnual. Its own "cashFlowPerShare" fields are NOT operating
+   * cash flow (they track free cash flow and run lower), which made MSFT read as OCF < net income.
+   */
+  pcfShareAnnual: number | null;
+  pfcfShareAnnual: number | null;
+  epsAnnual: number | null; // latest fiscal-year EPS: the same period as the cash-flow ratios above
   epsGrowthPct: number | null; // best multi-year EPS growth figure available, percent
 }
 
@@ -139,8 +145,9 @@ export async function fetchMetrics(symbol: string, apiKey: string): Promise<Metr
     debtToEquity: pick(m, 'totalDebt/totalEquityQuarterly', 'totalDebt/totalEquityAnnual'),
     dividendYield: pick(m, 'dividendYieldIndicatedAnnual', 'currentDividendYieldTTM'),
     revenuePerShare: pick(m, 'revenuePerShareTTM', 'revenuePerShareAnnual'),
-    cashFlowPerShare: pick(m, 'cashFlowPerShareTTM', 'cashFlowPerShareAnnual'),
-    freeCashFlowPerShare: pick(m, 'freeCashFlowPerShareTTM'),
+    pcfShareAnnual: pick(m, 'pcfShareAnnual'),
+    pfcfShareAnnual: pick(m, 'pfcfShareAnnual'),
+    epsAnnual: pick(m, 'epsInclExtraItemsAnnual', 'epsAnnual', 'epsExclExtraItemsAnnual'),
     // A multi-year figure is the right input for Graham's g; the one-quarter YoY is a last resort.
     epsGrowthPct: pick(m, 'epsGrowth5Y', 'epsGrowth3Y', 'epsGrowthTTMYoy', 'epsGrowthQuarterlyYoy'),
   };
