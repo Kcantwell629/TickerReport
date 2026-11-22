@@ -1,9 +1,34 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+
+// The API key is a credential, so it lives in the Android Keystore (via SecureStore), not in AsyncStorage's
+// plain SQLite file. SecureStore key names may only contain letters, digits, '.', '-' and '_'.
+const SECURE_API_KEY = 'ticker-report.finnhubKey';
+// Where earlier versions kept the key in plain text. 'ticker-report/apiKey' held an Alpha Vantage key that
+// Finnhub would reject, so it is only ever deleted.
+const LEGACY_API_KEYS = { finnhub: 'ticker-report/finnhubKey', alphaVantage: 'ticker-report/apiKey' };
+
+async function loadApiKey(): Promise<string> {
+  try {
+    const secure = await SecureStore.getItemAsync(SECURE_API_KEY);
+    if (secure) return secure;
+  } catch {
+    // fall through to the one-time migration below
+  }
+  // One-time migration: move a key saved by an older version out of plain storage, then wipe it.
+  let migrated = '';
+  try {
+    migrated = (await AsyncStorage.getItem(LEGACY_API_KEYS.finnhub)) ?? '';
+    if (migrated) await SecureStore.setItemAsync(SECURE_API_KEY, migrated);
+  } catch {
+    return migrated; // couldn't write to secure storage: keep the plain copy rather than lose the key
+  }
+  await AsyncStorage.multiRemove([LEGACY_API_KEYS.finnhub, LEGACY_API_KEYS.alphaVantage]).catch(() => {});
+  return migrated;
+}
 
 const KEYS = {
-  // Not 'ticker-report/apiKey': that held an Alpha Vantage key, which Finnhub would reject.
-  apiKey: 'ticker-report/finnhubKey',
   recent: 'ticker-report/recentTickers',
   aaaYield: 'ticker-report/aaaYield',
 };
@@ -31,7 +56,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     (async () => {
       try {
         const [k, r, y] = await Promise.all([
-          AsyncStorage.getItem(KEYS.apiKey),
+          loadApiKey(),
           AsyncStorage.getItem(KEYS.recent),
           AsyncStorage.getItem(KEYS.aaaYield),
         ]);
@@ -46,7 +71,8 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const setApiKey = useCallback(async (key: string) => {
     setApiKeyState(key);
-    await AsyncStorage.setItem(KEYS.apiKey, key);
+    if (key) await SecureStore.setItemAsync(SECURE_API_KEY, key);
+    else await SecureStore.deleteItemAsync(SECURE_API_KEY);
   }, []);
 
   const pushRecentTicker = useCallback(async (symbol: string) => {

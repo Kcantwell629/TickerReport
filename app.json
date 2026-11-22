@@ -19,7 +19,13 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.kcantwell629.tickerreport"
+      "package": "com.kcantwell629.tickerreport",
+      "allowBackup": false,
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -38,7 +44,8 @@
             "backgroundColor": "#0B1416"
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ]
   }
 }
